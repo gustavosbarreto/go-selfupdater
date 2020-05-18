@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -59,6 +61,17 @@ func (d docker) UpdateContainerImage(container *Container, image, name string, t
 	}
 
 	netConfig := &network.NetworkingConfig{EndpointsConfig: container.info.NetworkSettings.Networks}
+
+	rd, err := d.api.ImagePull(ctx, image, types.ImagePullOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer rd.Close()
+
+	_, err = io.Copy(ioutil.Discard, rd)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create a new container using the cloned container config
 	clone, err := d.api.ContainerCreate(ctx, config, container.info.HostConfig, netConfig, name)
