@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"os"
-	"strings"
+	"io/ioutil"
+	"net/http"
 	"time"
 
-	"github.com/parnurzeal/gorequest"
+	"github.com/labstack/echo"
 )
 
 type Info struct {
@@ -14,57 +15,48 @@ type Info struct {
 }
 
 func main() {
-	docker, _ := NewDockerClient()
-
-	containerID, err := GetCurrentContainerID()
+	up, err := NewUpdater()
 	if err != nil {
 		panic(err)
 	}
 
-	container, err := docker.GetContainer(containerID)
+	currentVersion, err := up.CurrentVersion()
 	if err != nil {
 		panic(err)
 	}
 
-	if docker.IsTransitionalContainer() {
-		parent, err := docker.GetParentContainer()
-		if err != nil {
-			panic(err)
-		}
-
-		if err := docker.StopContainer(parent); err != nil {
-			panic(err)
-		}
-
-		_, err = docker.UpdateContainerImage(parent, container.info.Config.Image, parent.info.Name, false)
-		if err != nil {
-			panic(err)
-		}
-
-		os.Exit(0)
+	if err := up.ApplyUpdate(currentVersion, true); err != nil {
+		panic(err)
 	}
+
+	fmt.Printf("Ola! Eu sou um container e minha version eh: %s\n", currentVersion.String())
+
+	e := echo.New()
+	e.GET("/info", func(c echo.Context) error {
+		version, err := ioutil.ReadFile("/VERSION")
+		if err != nil {
+			return err
+		}
+
+		return c.JSON(http.StatusOK, Info{Version: string(bytes.TrimSpace(version))})
+	})
+
+	go func() {
+		if err := e.Start(":3000"); err != nil {
+			panic(err)
+		}
+	}()
 
 	for {
-		fmt.Println("Checking for updates...")
-
-		info := new(Info)
-		_, _, _ = gorequest.New().Get("http://localhost:3000/info").EndStruct(&info)
-
-		parts := strings.SplitN(container.info.Config.Image, ":", 2)
-		ok, err := IsUpdateAvailable(parts[1], info.Version)
+		nextVersion, err := CheckUpdate()
 		if err != nil {
 			panic(err)
 		}
 
-		if ok {
-			fmt.Printf("Updating from %s to %s\n", parts[1], info.Version)
-
-			_, err := docker.UpdateContainerImage(container, fmt.Sprintf("%s:%s", parts[0], info.Version), "", true)
-			if err != nil {
-				panic(err)
-			}
+		if nextVersion.GreaterThan(currentVersion) {
+			up.ApplyUpdate(nextVersion, false)
 		}
 
-		time.Sleep(time.Second * 30)
+		time.Sleep(time.Second * 10)
 	}
 }
