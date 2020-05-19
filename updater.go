@@ -7,7 +7,8 @@ import (
 
 type Updater interface {
 	CurrentVersion() (*semver.Version, error)
-	ApplyUpdate(v *semver.Version, stopParent bool) error
+	ApplyUpdate(v *semver.Version) error
+	CompleteUpdate() error
 }
 
 func CheckUpdate() (*semver.Version, error) {

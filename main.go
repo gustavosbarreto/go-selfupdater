@@ -25,7 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := up.ApplyUpdate(currentVersion, true); err != nil {
+	if err := up.CompleteUpdate(); err != nil {
 		panic(err)
 	}
 
@@ -54,7 +54,7 @@ func main() {
 		}
 
 		if nextVersion.GreaterThan(currentVersion) {
-			up.ApplyUpdate(nextVersion, false)
+			up.ApplyUpdate(nextVersion)
 		}
 
 		time.Sleep(time.Second * 10)

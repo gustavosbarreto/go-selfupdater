@@ -46,7 +46,19 @@ func (d *dockerUpdater) CurrentVersion() (*semver.Version, error) {
 	return semver.NewVersion(version)
 }
 
-func (d *dockerUpdater) ApplyUpdate(v *semver.Version, stopParent bool) error {
+func (d *dockerUpdater) ApplyUpdate(v *semver.Version) error {
+	container, err := d.currentContainer()
+	if err != nil {
+		return err
+	}
+
+	image, _ := container.splitImageVersion()
+	_, err = d.updateContainer(container, fmt.Sprintf("%s:%s", image, v.String()), "", true)
+	return err
+
+}
+
+func (d *dockerUpdater) CompleteUpdate() error {
 	container, err := d.currentContainer()
 	if err != nil {
 		return err
@@ -57,7 +69,7 @@ func (d *dockerUpdater) ApplyUpdate(v *semver.Version, stopParent bool) error {
 		return err
 	}
 
-	if stopParent && parent != nil {
+	if parent != nil {
 		if err := d.stopContainer(parent); err != nil {
 			return err
 		}
@@ -68,12 +80,6 @@ func (d *dockerUpdater) ApplyUpdate(v *semver.Version, stopParent bool) error {
 		}
 
 		os.Exit(0)
-	} else if !stopParent {
-		image, _ := container.splitImageVersion()
-
-		_, err = d.updateContainer(container, fmt.Sprintf("%s:%s", image, v.String()), "", true)
-
-		return err
 	}
 
 	return nil
